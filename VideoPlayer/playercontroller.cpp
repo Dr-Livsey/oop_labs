@@ -53,8 +53,11 @@ PlayerController::PlayerController(PlayerView *View)
              Model, SLOT(SavePlaylist(QMediaPlaylist *)));
 
     //AddPlaylist
-    connect(View, SIGNAL(AddPlaylist(QMediaPlaylist *)),
-             Model, SLOT(AddPlaylist(QMediaPlaylist *)));
+    connect(View, SIGNAL(AddPlaylist(QMediaPlaylist *, bool &)),
+             Model, SLOT(AddPlaylist(QMediaPlaylist *, bool &)));
+
+    //Open video
+    connect(View, SIGNAL(OpenVideo(QUrl&)), Model, SLOT(OpenVideo(QUrl&)));
 }
 
 void PlayerController::ChangeDuration(qint64 new_duration)
@@ -80,9 +83,7 @@ void PlayerController::PlaylistUpdated(const QList<QUrl> &NewVideos)
     {
        QListWidgetItem *new_item = new QListWidgetItem;
 
-       //Set Filename
        new_item->setText(curUrl.fileName());
-       //Set index in PlayList to this video
        new_item->setData(Qt::UserRole, QVariant(curUrl));
 
        PlaylistWidget->addItem(new_item);

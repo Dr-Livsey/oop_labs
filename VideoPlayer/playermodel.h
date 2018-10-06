@@ -21,10 +21,12 @@ signals:
 public slots:
     /*Playlist*/
     void AddVideoToPlaylist();
+    /*Open video. Dont append to playlist.*/
+    void OpenVideo(QUrl &);
     /*Save Playlist*/
     void SavePlaylist(QMediaPlaylist *);
     /*Add Playlist*/
-    void AddPlaylist(QMediaPlaylist *playlist);
+    void AddPlaylist(QMediaPlaylist *, bool &added);
 };
 
 #endif // PLAYERMODEL_H

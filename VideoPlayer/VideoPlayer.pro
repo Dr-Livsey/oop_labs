@@ -32,15 +32,20 @@ SOURCES += \
     playercontroller.cpp \
     main.cpp \
     playermodel.cpp \
-    playerview.cpp
+    playerview.cpp \
+    createplaylistpopup.cpp \
+    myvideowidget.cpp
 
 HEADERS += \
     playercontroller.h \
     playermodel.h \
-    playerview.h
+    playerview.h \
+    createplaylistpopup.h \
+    myvideowidget.h
 
 FORMS += \
-    playerview.ui
+    playerview.ui \
+    createplaylistpopup.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

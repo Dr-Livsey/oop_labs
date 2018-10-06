@@ -50,6 +50,7 @@ private:
     QPushButton *StopButton;
     QPushButton *PauseButton;
 
+    QPushButton *OpenButton;
     QPushButton *AddVideoButton;
     QPushButton *DeleteButton;
     QPushButton *ResetButton;

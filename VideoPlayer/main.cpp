@@ -4,9 +4,9 @@
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-    PlayerView *View = new PlayerView;
+    PlayerView View;
 
-    View->show();
+    View.show();
 
     return a.exec();
 }
