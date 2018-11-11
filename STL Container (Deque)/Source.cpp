@@ -1,5 +1,6 @@
 #include <iostream>
 #include <deque>
+#include <string>
 #include <algorithm>
 
 #include "MyDeque.h"
@@ -9,32 +10,26 @@ using std::cout;
 using std::endl;
 
 /*
-	1. when init with initlist first element is 0
-
+	1. when init with initlist first element is 0 *FIXED*
+	2. std::sort is not effect *FIXED*
+	3. after line 23 iterators was incorrect (mapIterator) *FIXED*
 */
 
 int main()
-{	
-	mystd::deque<int> mydeq = { 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17};
-	mystd::deque<int>::iterator It;
-
-	It = mydeq.begin();
-	It += 17;
-
-	cout << *It  << endl;
-	
+{
+	//mystd::deque<int> mydeq = { 10,2,4, 11,13 };
+	mystd::deque<int> mydeq;
+	//std::deque<std::string> mydeq;
 
 
-	//for (auto It = mydeq.end(); It != mydeq.begin(); --It)
-	//{
-	//	cout << *It << endl;
-	//}
+	mydeq.emplace(mydeq.end(), 5);
+
+	for (auto It = mydeq.begin(); It != mydeq.end(); It++)
+	{
+		cout << *It << endl;
+	}
 
 
-	//for (auto It = mydeq.begin(); It != mydeq.end(); It++)
-	//{
-	//	cout << *It << endl;
-	//}
 
 	system("pause");
 	return 0;

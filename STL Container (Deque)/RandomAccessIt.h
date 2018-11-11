@@ -1,6 +1,9 @@
 #include <memory>
 #include <vector>
 
+#define or ||
+#define and &&
+
 template
 <
 	typename _Tp,
@@ -17,7 +20,10 @@ class random_access_iterator :
 public:
 	random_access_iterator() {}
 	random_access_iterator(const _RaIt &other) 
-		: current(other.current), mapIterator(other.mapIterator), mapEnd(other.mapEnd) {}
+		: current(other.current), 
+		  mapIterator(other.mapIterator), 
+		  mapEnd(other.mapEnd),
+		  mapStart(other.mapStart)	{}
 	random_access_iterator
 	(
 		const typename chunk::iterator&, 
@@ -27,19 +33,29 @@ public:
 	);
 	random_access_iterator(_RaIt &&other)
 		: current(std::move(other.current)), 
-			mapIterator(std::move(other.mapIterator)), 
-				mapEnd(std::move(other.mapEnd)) {}
+		  mapIterator(std::move(other.mapIterator)), 
+		  mapEnd(std::move(other.mapEnd)),
+		  mapStart(std::move(other.mapStart)) {}
 
 	_RaIt& operator=(const _RaIt&);
 
 	_RaIt& operator++(); //prefix increment
 	_RaIt operator++(int); //postfix increment
-
 	_RaIt& operator--(); //prefix decrement
 	_RaIt operator--(int); //postfix decrement
-	_RaIt& operator-=(int); /*Not implemented*/     
-	_RaIt& operator+=(int); /*Not implemented*/     
-	_RaIt operator-(int) const; /*Not implemented*/
+
+	_RaIt& operator-=(int);     
+	_RaIt& operator+=(int);  
+
+	_RaIt operator-(int) const;
+	_Distance operator-(_RaIt&) const;
+
+	_RaIt operator+(int) const;
+	friend _RaIt operator+(int var, const _RaIt &other) { return (*this + var); }
+	friend _RaIt operator-(int var, const _RaIt &other) { return (*this - var); }
+	friend _Distance operator-(const _RaIt &It1, const _RaIt &It2) { return std::distance(It2, It1); }
+
+	_Reference operator[](int) const;
 
 	_Tp operator*() const { return (*current); }
 	_Reference operator*() { return (*current); }
@@ -51,8 +67,13 @@ public:
 	}
 	bool operator!=(const _RaIt &other) const { return !(this->operator==(other)); }
 
+	bool operator<(const _RaIt &other) const;
+	bool operator>(const _RaIt &other) const;
+	bool operator<=(const _RaIt &other) const;
+	bool operator>=(const _RaIt &other) const; 
+
 private:
-	/*Point to current item in vector*/
+	/*Point to current item in chunk*/
 	typename chunk::iterator current;
 
 	/*Point to current chunk*/
@@ -60,7 +81,7 @@ private:
 
 	/*End of map*/
 	typename std::vector<chunk*>::iterator mapEnd;
-	/*End of map*/
+	/*End of start*/
 	typename std::vector<chunk*>::iterator mapStart;
 };
 
@@ -73,8 +94,8 @@ template<typename _Tp, typename _Distance, typename _Pointer, typename _Referenc
     const typename std::vector<chunk*>::iterator &_mapEnd,
 	const typename std::vector<chunk*>::iterator &_mapStart)
 {
-	mapIterator = _Chunk;
 	current = _Pos;
+	mapIterator = _Chunk;
 	mapEnd = _mapEnd;
 	mapStart = _mapStart;
 }
@@ -125,13 +146,24 @@ template<typename _Tp, typename _Distance, typename _Pointer, typename _Referenc
 random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator> & 
 	random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator--()
 {
+	if (mapIterator == mapEnd)
+	{
+		mapIterator--;
+		current--;
+		return *this;
+	}
+
 	if (current == (*mapIterator)->begin())
 	{
-		if (mapIterator == mapStart) return *this;
+		if (mapIterator == mapStart)
+		{
+			current--;
+			return *this;
+		}
 		else
 		{
 			mapIterator--;
-			current = (*mapIterator)->end();
+			current = (*mapIterator)->end() - 1;
 		}
 	}
 	else
@@ -153,41 +185,80 @@ random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>
 
 template<typename _Tp, typename _Distance, typename _Pointer, typename _Reference, typename _Allocator>
 random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>& 
-	random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator-=(int)
+	random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator-=(int offset)
 {
-	/*Not implemented*/
+	return *this += -offset;
 }
 
 template<typename _Tp, typename _Distance, typename _Pointer, typename _Reference, typename _Allocator>
 random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator> & 
 	random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator+=(int offset)
 {
-	if (offset >= 0)
+	if (mapIterator == mapEnd)
 	{
-		if (mapEnd == mapIterator) 
-			return *this;
-		else if (std::next(mapIterator) == mapEnd)
+		if (offset > 0)
 		{
-			current += offset;
+			/*throw exception*/
+			current++;
+			return *this;
+		}
+		else if (offset < 0)
+		{
+			/*ставим текущий в конец предыдущего chunk*/
+			mapIterator--;
+			current = (*mapIterator)->end() - 1;
+			offset++;
+		}
+	}
+
+	/*сдвиг относительно начала текущего chunk*/
+	offset = (current - (*mapIterator)->begin()) + offset;
+	current = (*mapIterator)->begin();
+
+	while (offset)
+	{
+		if (offset > 0)
+		{
+			if (mapIterator == mapEnd) return *this;
+			else
+			{
+				int chunk_size = (*mapIterator)->end() - (*mapIterator)->begin();
+
+				if (offset >= chunk_size)
+				{
+					mapIterator++;
+					if (mapIterator != mapEnd) 
+						current = (*mapIterator)->begin();
+					offset -= chunk_size;
+				}
+				else
+				{
+					current += offset;
+					offset = 0;
+				}
+			}
 		}
 		else
 		{
+			/*текущее положение итератора current в chunk*/
+			int curPos = current - (*mapIterator)->begin();
+			/*размер текущего chunk*/
 			int chunk_size = (*mapIterator)->end() - (*mapIterator)->begin();
-			int full_chunks = offset / chunk_size;
+			bool more = (curPos + offset) < 0;
 
-			mapIterator += full_chunks;
-
-			if (mapEnd != mapIterator)
-				current = (*mapIterator)->begin() + (offset % chunk_size);
+			if (more)
+			{
+				mapIterator--;
+				current = (*mapIterator)->end() - 1;
+				offset += curPos + 1;
+			}
 			else
-				current = (*(mapIterator - 1))->end();
+			{
+				current += offset;
+				offset = 0;
+			}
 		}
 	}
-	else
-	{
-		/*Not implemented*/
-	}
-
 
 	return *this;
 }
@@ -196,5 +267,97 @@ template<typename _Tp, typename _Distance, typename _Pointer, typename _Referenc
 random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator> 
 	random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator-(int dec_val) const
 {
-	/*Not implemented*/
+	_RaIt oldIt = *this;
+	return oldIt -= dec_val;
+}
+
+template<typename _Tp, typename _Distance, typename _Pointer, typename _Reference, typename _Allocator>
+random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>
+	random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator+(int inc_val) const
+{
+	_RaIt oldIt = *this;
+	return oldIt += inc_val;
+}
+
+template<typename _Tp, typename _Distance, typename _Pointer, typename _Reference, typename _Allocator>
+_Reference random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator[](int n) const
+{
+	return *(*this + n);
+}
+
+template<typename _Tp, typename _Distance, typename _Pointer, typename _Reference, typename _Allocator>
+bool random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator<(const _RaIt & other) const
+{
+	if (mapIterator == other.mapIterator)
+	{
+		return current < other.current;
+	}
+	return mapIterator < other.mapIterator;
+}
+
+template<typename _Tp, typename _Distance, typename _Pointer, typename _Reference, typename _Allocator>
+bool random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator>(const _RaIt & other) const
+{
+	if (mapIterator == other.mapIterator)
+	{
+		return current > other.current;
+	}
+	return mapIterator > other.mapIterator;
+}
+
+template<typename _Tp, typename _Distance, typename _Pointer, typename _Reference, typename _Allocator>
+bool random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator<=(const _RaIt & other) const
+{
+	return !(*this > other);
+}
+
+template<typename _Tp, typename _Distance, typename _Pointer, typename _Reference, typename _Allocator>
+bool random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator>=(const _RaIt & other) const
+{
+	return !(*this < other);
+}
+
+template<typename _Tp, typename _Distance, typename _Pointer, typename _Reference, typename _Allocator>
+_Distance random_access_iterator<_Tp, _Distance, _Pointer, _Reference, _Allocator>::operator-(_RaIt &_other) const
+{	
+	_RaIt oldIt = _other;
+	_RaIt other = *this;
+	bool is_swapped = false;
+
+	/*oldIt must be less then other*/
+	if (!(oldIt < other))
+	{
+		_RaIt temp(oldIt);
+		oldIt = other;
+		other = temp;
+		is_swapped = true;
+	}
+
+	if (oldIt.mapIterator == other.mapIterator)
+	{
+		return other.current - oldIt.current;
+	}
+	else
+	{
+		_Distance offset = 0;
+
+		/*skip chunks*/
+		while (oldIt.mapIterator != other.mapIterator)
+		{
+
+			offset += (*oldIt.mapIterator)->end() - oldIt.current;
+
+			oldIt.mapIterator++;
+			if (oldIt.mapIterator != mapEnd)
+				oldIt.current = (*oldIt.mapIterator)->begin();
+			else
+			{
+				return is_swapped ? -offset :  offset;
+			}
+		}
+
+		offset += (other.current - oldIt.current);
+
+		return is_swapped ? -offset : offset;
+	}
 }
