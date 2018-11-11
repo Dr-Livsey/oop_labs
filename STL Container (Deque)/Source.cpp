@@ -18,12 +18,10 @@ using std::endl;
 int main()
 {
 	//mystd::deque<int> mydeq = { 10,2,4, 11,13 };
-	mystd::deque<int> mydeq;
+	mystd::deque<int> mydeq = { 1,2,3,4,5,6,7,8, 10 };
 	//std::deque<std::string> mydeq;
 
-
-	mydeq.emplace(mydeq.end(), 5);
-
+	
 	for (auto It = mydeq.begin(); It != mydeq.end(); It++)
 	{
 		cout << *It << endl;

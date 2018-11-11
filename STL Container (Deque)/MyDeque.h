@@ -68,6 +68,7 @@ namespace mystd
 
 		iterator			erase(iterator pos);
 		iterator			erase(iterator first, iterator last);
+		void				shrink_to_fit();
 
 		iterator			insert(iterator pos, const_reference value);
 		iterator			insert(iterator pos, T&& value);
@@ -138,8 +139,8 @@ namespace mystd
 		reference		operator[](size_type pos) { return (*(start + pos)); }
 		reference		at(size_type pos)
 		{
-			if (!(pos < this->size()))
-				throw std::out_of_range("Position is out of range");
+			if (pos < 0 or pos >= this->size())
+				throw std::out_of_range("deque element out of range");
 
 			return this->operator[](pos);
 		}
@@ -169,6 +170,7 @@ namespace mystd
 		void construct(const deque<T, allocator_type>&, const Allocator&);
 		void clean_up();
 
+		size_type split_chunk(typename std::vector<chunk*>::iterator &);
 		void free_chunk(typename std::vector<chunk*>::iterator&);
 		typename std::vector<chunk*>::iterator get_chunk(size_type &idx);
 	};

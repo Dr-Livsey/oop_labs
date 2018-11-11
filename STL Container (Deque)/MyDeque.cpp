@@ -92,6 +92,44 @@ template<class T, class Allocator>
  }
 
  template<class T, class Allocator>
+ typename mystd::deque<T, Allocator>::size_type mystd::deque<T, Allocator>::split_chunk(typename std::vector<chunk*>::iterator &_chunk)
+ {
+	 chunk *split_low = chunk_alloc.allocate(1);
+	 chunk *split_hight = chunk_alloc.allocate(1);
+
+	 size_type ch_size = (*_chunk)->size() / 2;
+	 size_type ins_idx = _chunk - chunk_map.begin();
+
+	 chunk_alloc.construct
+	 (
+		 split_low, 
+		 std::forward<chunk>
+		 (
+			 std::vector<T, Allocator>((*_chunk)->begin(), (*_chunk)->begin() + ch_size)
+		 )
+	 );
+	 chunk_alloc.construct
+	 (
+		 split_hight,
+		 std::forward<chunk>
+		 (
+			 std::vector<T, Allocator>((*_chunk)->begin() + ch_size, (*_chunk)->end())
+		 )
+	 );
+
+	 split_low->reserve(8);
+	 split_hight->reserve(8);
+
+
+	 chunk_map.insert(chunk_map.begin() + ins_idx, split_hight);
+	 chunk_map.insert(chunk_map.begin() + ins_idx, split_low);
+
+	 chunk_map.erase(chunk_map.begin() + ins_idx + 2);
+
+	 return ins_idx; // low chunk
+ }
+
+ template<class T, class Allocator>
  void mystd::deque<T, Allocator>::free_chunk(typename std::vector<chunk*>::iterator &ch)
  {
 	 bool is_start = (ch == chunk_map.begin());
@@ -212,40 +250,19 @@ typename mystd::deque<T, Allocator>::size_type mystd::deque<T, Allocator>::size(
 template<class T, class Allocator>
 void mystd::deque<T, Allocator>::push_front(const value_type &value)
 {
-	if (chunk_map.front()->size() == chunk_size)
-	{
-		std::reverse(chunk_map.begin(), chunk_map.end());
-		allocateChunk();
-		std::reverse(chunk_map.begin(), chunk_map.end());
-		refreshIterators();
-	}
-	insert(start, value);
+	insert(begin(), value);
 }
 
 template<class T, class Allocator>
 void mystd::deque<T, Allocator>::push_front(value_type &&value)
 {
-	if (chunk_map.front()->size() == chunk_size)
-	{
-		std::reverse(chunk_map.begin(), chunk_map.end());
-		allocateChunk();
-		std::reverse(chunk_map.begin(), chunk_map.end());
-		refreshIterators();
-	}
-
-	std::reverse(chunk_map[0]->begin(), chunk_map[0]->end());
-	chunk_map[0]->push_back(std::forward<T>(value));
-	std::reverse(chunk_map[0]->begin(), chunk_map[0]->end());
-
-	refreshIterators();
+	emplace_front(std::move(value));
 }
 
 template<class T, class Allocator>
 void mystd::deque<T, Allocator>::push_back(const value_type &value)
 {
-	if (chunk_map.back()->size() == chunk_size)	 allocateChunk();
-	chunk_map[chunk_map.size() - 1]->push_back(value);
-	refreshIterators();
+	insert(end(), value);
 }
 
 template<class T, class Allocator>
@@ -277,9 +294,7 @@ void mystd::deque<T, Allocator>::refreshIterators()
 template<class T, class Allocator>
 void mystd::deque<T, Allocator>::push_back(value_type && x)
 {
-	if (chunk_map.back()->size() == chunk_size)	 allocateChunk();
-	chunk_map[chunk_map.size() - 1]->push_back(std::forward<T>(x));
-	refreshIterators();
+	emplace_back(std::move(x));
 }
 
 template<class T, class Allocator>
@@ -397,6 +412,23 @@ mystd::deque<T, Allocator>::insert
 		idx = (*ins_chunk)->size();
 	}
 
+	/*ins_chunk is full, split ins_chunk*/
+	if ((*ins_chunk)->size() >= 8)
+	{
+		size_type new_insIdx = split_chunk(ins_chunk);
+		
+		ins_chunk = chunk_map.begin() + new_insIdx;
+		size_type iSize = (*ins_chunk)->size();
+
+		if (idx >= iSize)
+		{
+			ins_chunk++;
+			idx -= iSize;
+		}
+
+		refreshIterators();
+	}
+
 	/*idx is changed. old idx = new idx + ins_chunk->begin()*/
 	typename chunk::iterator ins_it = (*ins_chunk)->insert((*ins_chunk)->begin() + idx, value);
 
@@ -417,7 +449,7 @@ mystd::deque<T, Allocator>::insert
 	T && value
 )
 {
-	return insert(pos, value);
+	return emplace(pos, std::move(value));
 }
 
 template<class T, class Allocator>
@@ -540,28 +572,9 @@ typename mystd::deque<T, Allocator>::iterator mystd::deque<T, Allocator>::emplac
 	iterator pos, Args && ...args
 )
 {
-	size_type idx = pos - start;
-	typename std::vector<chunk*>::iterator ins_chunk = get_chunk(idx);
-
-	if (!idx && ins_chunk == chunk_map.end())
-	{
-		ins_chunk--;
-		idx = (*ins_chunk)->size();
-	}
-
-	/*idx is changed. old idx = new idx + ins_chunk->begin()*/
-	typename chunk::iterator ins_it = (*ins_chunk)->emplace
-	(
-		(*ins_chunk)->begin() + idx, std::forward<T>(args)...
-	);
-
-	if (ins_chunk == chunk_map.begin())
-		refreshIterators();
-	else if (ins_chunk + 1 == chunk_map.end())
-		refreshIterators();
-
-	iterator retval(ins_it, ins_chunk, chunk_map.end(), chunk_map.begin());
-	return retval;
+	value_type obj;
+	data_alloc.construct(&obj, std::forward<value_type>(args)...);
+	return this->insert(pos, obj);
 }
 
 template<class T, class Allocator>
@@ -590,4 +603,13 @@ void mystd::deque<T, Allocator>::emplace_front(Args && ...args)
 	std::reverse(chunk_map[0]->begin(), chunk_map[0]->end());
 
 	refreshIterators();
+}
+
+template<class T, class Allocator>
+void mystd::deque<T, Allocator>::shrink_to_fit()
+{
+	for (auto It = chunk_map.end() - 1; It != chunk_map.begin(); It--)
+	{
+		if ((*It)->empty()) free_chunk(It);
+	}
 }
