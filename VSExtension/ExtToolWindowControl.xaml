@@ -1,0 +1,59 @@
+﻿<UserControl x:Class="VSExtension.ExtToolWindowControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+             Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+             mc:Ignorable="d"
+             Name="ExtToolWindow" Width="830" Height="136">
+
+	<ListView Margin="5,5,5,5" Name="InfoTable" TextBlock.TextAlignment="Center" TextBlock.FontStyle="Normal"  FontWeight ="Bold" Background="AliceBlue">
+		<ListView.View>
+			<GridView>
+				<GridViewColumn 
+					DisplayMemberBinding = "{Binding ItemName}"	
+					Header="Item name"	
+					Width="200"/>
+
+				<GridViewColumn 
+					DisplayMemberBinding = "{Binding KeyWordsAmount}"	
+					Header="Key words amount"				
+					Width="120"/>
+
+				<GridViewColumn 
+					DisplayMemberBinding = "{Binding LinesAmount}"	
+					Header="Lines amount"					
+					Width="90"/>
+
+				<GridViewColumn 
+					DisplayMemberBinding = "{Binding LinesAmountWithoutComments	}"	
+					Header="Lines amount w/o comments"		
+					Width="180"/>
+
+				<GridViewColumn 
+					DisplayMemberBinding = "{Binding ClassFieldsAmount}"	
+					Header="Class fields"					
+					Width="120"/>
+
+				<GridViewColumn 
+					DisplayMemberBinding = "{Binding ClassMethodsAmount}"	
+					Header="Class methods"					
+					Width="120"/>
+			</GridView>
+		</ListView.View>
+
+		<ListView.ItemContainerStyle>
+			<Style TargetType="ListViewItem">
+				<Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+				<Setter Property="VerticalContentAlignment"	Value="Stretch"/>
+				<Setter Property="FontWeight"	Value="Normal"/>
+				<Setter Property="FontStyle"	Value="Normal"/>
+				<Setter Property="Height"		Value="20"/>
+				<Setter Property="Foreground"	Value="Black"/>
+			</Style>
+		</ListView.ItemContainerStyle>
+	</ListView>
+
+</UserControl>
