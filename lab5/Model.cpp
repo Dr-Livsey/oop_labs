@@ -13,14 +13,13 @@ Model::~Model()
 {
 }
 
-std::string Model::make_stackline(int val, int addr)
+std::string Model::make_stackline(unsigned val, unsigned addr)
 {
 	std::stringstream ss;
 	ss << "[" << num_to_hexstr(addr) << "] " << num_to_hexstr(val);
-
 	return ss.str();
 }
-std::string Model::make_strline(const c_line & l, int addr)
+std::string Model::make_strline(const c_line & l, unsigned addr)
 {
 	std::string cmd;
 	std::pair<std::string, int> arg1, arg2;
@@ -42,19 +41,47 @@ std::string Model::make_strline(const c_line & l, int addr)
 
 	return line_ss.str();
 }
-std::string Model::num_to_hexstr(int num)
+std::string Model::num_to_hexstr(unsigned num)
 {
 	std::stringstream s_addr;
 	s_addr << "0x" << std::setw(8) << std::setfill('0') << std::hex << num;
 	return s_addr.str();
 }
 
-void Model::select_line(int addr, OgreBites::TextBox *tb)
+
+void Model::insert_stackline(unsigned val, unsigned addr)
+{
+	std::string src_text = app->stack_tb->getText();
+	std::string str_addr = "[" + num_to_hexstr(addr) + "]";
+
+	auto last_line = src_text.find(str_addr);
+	if (last_line != std::string::npos)
+	{
+		src_text.replace
+		(
+			last_line,
+			make_stackline(stack.at(addr), addr).length(),
+			make_stackline(val, addr)
+		);
+	}
+	else
+		app->stack_tb->appendText(make_stackline(val, addr) + "\n");
+}
+
+void Model::select_line(unsigned addr, OgreBites::TextBox *tb)
 {
 	std::string src_text = tb->getText();
 
 	std::string hex_addr = num_to_hexstr(addr);
 	std::string search_str = (tb == app->code_tb) ? hex_addr : "[" + hex_addr + "]";
+
+	/*удаление старых стрелок, если таке есть*/
+	auto oldarrange_idx = src_text.find("\t<--");
+	if (oldarrange_idx != std::string::npos)
+	{
+		src_text.replace(oldarrange_idx, std::string("\t<--").length(), "");
+		tb->setText(src_text);
+	}
 
 	/*ищем строку с данным адресом*/
 	auto addr_idx = src_text.find(search_str);
@@ -64,14 +91,6 @@ void Model::select_line(int addr, OgreBites::TextBox *tb)
 		/*если не нашли, eip указывает на старое место*/
 		//cur_line -= 4;
 		return;
-	}
-
-	/*удаление старых стрелок, если таке есть*/
-	auto oldarrange_idx = src_text.find("\t<--");
-	if (oldarrange_idx != std::string::npos)
-	{
-		src_text.replace(oldarrange_idx, std::string("\t<--").length(), "");
-		addr_idx -= std::string("\t<--").length();
 	}
 
 	/*указываем на новую строку кода, изменяем eip*/
@@ -84,9 +103,13 @@ void Model::select_line(int addr, OgreBites::TextBox *tb)
 	tb->setText(src_text);
 }
 
-void Model::exec_line(int addr)
+void Model::exec_line(unsigned addr)
 {
-	if (cmd_list.find(addr) == cmd_list.end()) return;
+	if (cmd_list.find(addr) == cmd_list.end())
+	{
+		app->getTray()->showOkDialog("Code execution", "EXCEPTION:\n" + std::string("EIP is invalid"));
+		return;
+	}
 
 	c_line code_line = cmd_list[addr];
 
@@ -99,42 +122,64 @@ void Model::exec_line(int addr)
 	{
 		if (cmd == "push")
 		{
-			int val = unpack_arg(arg1);
-			
-			stack[esp + 4] = val;
-			app->stack_tb->appendText(make_stackline(val, esp + 4) + "\n");
+			if (stack_overflow)
+				app->getTray()->showOkDialog("Code execution", "EXCEPTION:\n" + std::string("Stack overflow"));
+			else
+			{
+				if (esp - 4 == 0x0)
+					stack_overflow = true;
 
-			set_reg("esp", esp + 4);
-			select_line(esp, app->stack_tb);
+				esp_invalid = false;
+				unsigned val = unpack_arg(arg1);
+
+				stack[esp - 4] = val;
+				insert_stackline(stack[esp - 4], esp - 4);
+
+				set_register("esp", esp - 4);
+				select_line(esp, app->stack_tb);
+			}
+
+			/*set next instruction*/
+			set_register("eip", eip + 4);
 		}
 		else if (cmd == "pop")
 		{
 			if (arg1.second == value)
 				throw std::exception("Invalid instruction arguments");
-			else if (esp >= 0)
+			else if (!stack.empty() && esp_invalid == false)
 			{
-				set_reg(arg1.first, stack[esp]);
-				set_reg("esp", esp - 4);
+				if (esp + 4 < esp)
+					esp_invalid = true;
 
-				if (esp < 0)
-					app->stack_tb->clearText();
-				else
-					select_line(esp, app->stack_tb);		
+				stack_overflow = false;
+				set_register(arg1.first.c_str(), stack[esp]);
+
+				set_register("esp", esp + 4);
+				select_line(esp, app->stack_tb);		
 			}
 			else
-				app->getTray()->showOkDialog("Code execution", "EXCEPTION:\n" + std::string("ESP is invalid"));
+				app->getTray()->showOkDialog("Code execution", "EXCEPTION:\n" + std::string("Stack empty or ESP is invalid"));
+			
+			/*set next instruction*/
+			set_register("eip", eip + 4);
+		}
+		else if (cmd == "mov")
+		{
+			if (arg1.second != reg)
+				throw std::exception("Invalid instruction arguments");
+
+			set_register(arg1.first.c_str(), unpack_arg(arg2));	
+
+			/*set next instruction*/
+			set_register("eip", eip + 4);
+		}
+		else if (cmd == "jmp") set_register("eip", unpack_arg(arg1));
+		else if (cmd == "call")
+		{
+
 		}
 
-
-		if (cmd_list.find(eip + 4) == cmd_list.end())
-		{
-			throw std::exception("No more instructions for execution");
-		}
-		else
-		{
-			set_reg("eip", eip + 4);
-			select_line(eip, app->code_tb);
-		}
+		select_line(eip, app->code_tb);
 	}
 	catch (const std::exception &ex)
 	{
@@ -142,7 +187,7 @@ void Model::exec_line(int addr)
 	}
 }
 
-int & Model::get_reg(std::string reg_s)
+unsigned & Model::get_reg(std::string reg_s)
 {
 	if (reg_s == "esp")
 		return esp;
@@ -153,31 +198,31 @@ int & Model::get_reg(std::string reg_s)
 
 	return ebp;
 }
-void Model::set_reg(std::string reg_s, int val)
+void Model::set_register(const char *reg_s, unsigned val)
 {
-	if (reg_s == "esp")
+	if (std::string(reg_s) == std::string("esp"))
 	{
 		esp = val; app->esp->setItems({ num_to_hexstr(val) });
 	}
-	else if (reg_s == "eip")
+	else if (std::string(reg_s) == std::string("eip"))
 	{
 		eip = val; app->eip->setItems({ num_to_hexstr(val) });
 	}
-	else if (reg_s == "eax")
+	else if (std::string(reg_s) == std::string("eax"))
 	{
 		eax = val; app->eax->setItems({ num_to_hexstr(val) });
 	}
-	else if (reg_s == "ebp")
+	else if (std::string(reg_s) == std::string("ebp"))
 	{
 		ebp = val; app->ebp->setItems({ num_to_hexstr(val) });
 	}
 }
 
-int & Model::unpack_arg(const std::pair<std::string, int>& arg)
+unsigned & Model::unpack_arg(const std::pair<std::string, int>& arg)
 {
-	auto convert_to_int = [](std::string val) -> int
+	auto convert_to_int = [](std::string val) -> unsigned
 	{
-		int retval;
+		unsigned retval;
 
 		if (boost::regex_match(val, boost::regex("^0x(?:[a-f]|\\d){1,}$")))
 		{
@@ -193,12 +238,12 @@ int & Model::unpack_arg(const std::pair<std::string, int>& arg)
 			}
 		}
 		else
-			retval = boost::lexical_cast<int>(val);
+			retval = boost::lexical_cast<unsigned>(val);
 
 		return retval;
 	};
 
-	int val = (arg.second == reg) ? get_reg(arg.first) : convert_to_int(arg.first);
+	unsigned val = (arg.second == reg) ? get_reg(arg.first) : convert_to_int(arg.first);
 
 	return val;
 }
@@ -252,7 +297,9 @@ void Model::parse_code(const char * xml_name)
 
 	if (xml_code)
 	{
-		eip = 0; esp = -4; ebp = 0; eax = 0;
+		stack_overflow = false;
+		esp_invalid = false;
+		eip = 0; esp = 0; ebp = 0; eax = 0;
 
 		cmd_list.clear();
 		stack.clear();
@@ -309,10 +356,11 @@ void Model::parse_code(const char * xml_name)
 
 		select_line(0, app->code_tb);
 
-		/*stack init*/
-		set_reg("esp", esp);
-		//app->stack_tb->appendText(make_stackline(0, 0) + "\n");
-		//select_line(0, app->stack_tb);
+		/*set_registers*/
+		set_register("esp", esp);
+		set_register("eax", eax);
+		set_register("eip", eip);
+		set_register("ebp", ebp);
 	}
 	else app->getTray()->showOkDialog("Code parsing", "Status: invalid code file format");
 

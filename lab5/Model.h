@@ -22,15 +22,17 @@ public:
 
 	void parse_code(const char *xml_name);
 
-	void select_line(int addr, OgreBites::TextBox *tb);
+	void select_line(unsigned addr, OgreBites::TextBox *tb);
 
-	void exec_line(int addr);
+	void exec_line(unsigned addr);
 	void exec_line() { exec_line(eip); }
 
-	void set_reg(std::string, int);
+	void set_register(const char*, unsigned);
 
 private:
-	int esp = 0, ebp = 0, eip = 0, eax = 0;
+	bool esp_invalid = false;
+	bool stack_overflow = false;
+	unsigned esp = 0, ebp = 0, eip = 0, eax = 0;
 
 	std::map<int, c_line>	cmd_list;
 	std::map<int, int>		stack;
@@ -39,11 +41,12 @@ private:
 
 	std::pair<std::string, int>* args_parse(int arg_amount, tinyxml2::XMLElement *xml_element, bool & err_code);
 
-	std::string make_stackline(int val, int addr);
-	std::string make_strline(const c_line &l, int addr);
-	std::string num_to_hexstr(int num);
+	void		insert_stackline(unsigned val, unsigned addr);
+	std::string make_stackline(unsigned val, unsigned addr);
+	std::string make_strline(const c_line &l, unsigned addr);
+	std::string num_to_hexstr(unsigned num);
 
-	int &get_reg(std::string reg_s);
-	int &unpack_arg(const std::pair<std::string, int> &arg);
+	unsigned &get_reg(std::string reg_s);
+	unsigned &unpack_arg(const std::pair<std::string, int> &arg);
 };
 
