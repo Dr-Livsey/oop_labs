@@ -13,6 +13,7 @@
 					
 					   /*cmd                    arg1, type1                  arg2, type2*/
 typedef std::tuple<std::string, std::pair<std::string, int>, std::pair<std::string, int>> c_line;
+typedef std::pair<std::string, int> argument;
 
 class Model
 {
@@ -29,6 +30,12 @@ public:
 
 	void set_register(const char*, unsigned);
 
+	void push(const argument &arg);
+	void pop(const argument &arg);
+	void mov(const argument &arg1, const argument &arg2);
+	void jmp(const argument &arg);
+	void ret();
+
 private:
 	bool esp_invalid = false;
 	bool stack_overflow = false;
@@ -36,6 +43,7 @@ private:
 
 	std::map<int, c_line>	cmd_list;
 	std::map<int, int>		stack;
+	std::map<std::string, unsigned> labels;
 
 	Application *app;
 

@@ -1,7 +1,14 @@
 <CODE>
-	<line cmd = "push" arg1 = "0x12345" />
-	<line cmd = "pop"  arg1 = "eax"  	/>
-	<line cmd = "mov"  arg1 = "esp" 	arg2 = "111"/>
-	<line cmd = "push" arg1 = "2222" 	/>
-	<line cmd = "push" arg1 = "3333" 	/>
+	<line cmd="jmp"  arg1="start" 			/>
+	<line label="function"					/>
+	<line cmd="mov"  arg1="ebp"	arg2="esp"	/>
+	<line cmd="push" arg1="0x222" 			/>
+	<line cmd="mov"  arg1="eax" arg2="0x111"/>
+	<line cmd="mov"  arg1="esp"	arg2="ebp"	/>
+	<line cmd="ret"							/>
+	<line label="start"						/>
+	<line cmd="call" arg1="function"		/>
+	<line cmd="mov"  arg1="eax"	arg2="0x0"	/>
+	<line cmd="pop"  arg1="eax"				/>
+	<line cmd="push" arg1="0x12345"			/>
 </CODE>

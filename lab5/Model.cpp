@@ -8,7 +8,6 @@ using namespace tinyxml2;
 Model::Model(Application *parent) : app(parent)
 {
 }
-
 Model::~Model()
 {
 }
@@ -47,7 +46,6 @@ std::string Model::num_to_hexstr(unsigned num)
 	s_addr << "0x" << std::setw(8) << std::setfill('0') << std::hex << num;
 	return s_addr.str();
 }
-
 
 void Model::insert_stackline(unsigned val, unsigned addr)
 {
@@ -102,7 +100,6 @@ void Model::select_line(unsigned addr, OgreBites::TextBox *tb)
 	tb->clearText();
 	tb->setText(src_text);
 }
-
 void Model::exec_line(unsigned addr)
 {
 	if (cmd_list.find(addr) == cmd_list.end())
@@ -120,71 +117,30 @@ void Model::exec_line(unsigned addr)
 
 	try
 	{
-		if (cmd == "push")
+		if (cmd == "push")		push(arg1);
+		else if (cmd == "pop")	pop(arg1);				
+		else if (cmd == "mov")	mov(arg1, arg2);
+		else if (cmd == "jmp" || cmd == "call" || cmd == "ret")
 		{
-			if (stack_overflow)
-				app->getTray()->showOkDialog("Code execution", "EXCEPTION:\n" + std::string("Stack overflow"));
-			else
+			if (cmd == "jmp") jmp(arg1);
+			else if (cmd == "call")
 			{
-				if (esp - 4 == 0x0)
-					stack_overflow = true;
-
-				esp_invalid = false;
-				unsigned val = unpack_arg(arg1);
-
-				stack[esp - 4] = val;
-				insert_stackline(stack[esp - 4], esp - 4);
-
-				set_register("esp", esp - 4);
-				select_line(esp, app->stack_tb);
+				push({ std::to_string(eip + 4), value });
+				jmp(arg1);
 			}
+			else if (cmd == "ret") ret();
 
-			/*set next instruction*/
-			set_register("eip", eip + 4);
+			select_line(eip, app->code_tb);
+			return;
 		}
-		else if (cmd == "pop")
-		{
-			if (arg1.second == value)
-				throw std::exception("Invalid instruction arguments");
-			else if (!stack.empty() && esp_invalid == false)
-			{
-				if (esp + 4 < esp)
-					esp_invalid = true;
-
-				stack_overflow = false;
-				set_register(arg1.first.c_str(), stack[esp]);
-
-				set_register("esp", esp + 4);
-				select_line(esp, app->stack_tb);		
-			}
-			else
-				app->getTray()->showOkDialog("Code execution", "EXCEPTION:\n" + std::string("Stack empty or ESP is invalid"));
-			
-			/*set next instruction*/
-			set_register("eip", eip + 4);
-		}
-		else if (cmd == "mov")
-		{
-			if (arg1.second != reg)
-				throw std::exception("Invalid instruction arguments");
-
-			set_register(arg1.first.c_str(), unpack_arg(arg2));	
-
-			/*set next instruction*/
-			set_register("eip", eip + 4);
-		}
-		else if (cmd == "jmp") set_register("eip", unpack_arg(arg1));
-		else if (cmd == "call")
-		{
-
-		}
-
-		select_line(eip, app->code_tb);
 	}
 	catch (const std::exception &ex)
 	{
 		app->getTray()->showOkDialog("Code execution", "WARNING:\n" + std::string(ex.what()));
 	}
+
+	set_register("eip", eip + 4);
+	select_line(eip, app->code_tb);
 }
 
 unsigned & Model::get_reg(std::string reg_s)
@@ -203,6 +159,7 @@ void Model::set_register(const char *reg_s, unsigned val)
 	if (std::string(reg_s) == std::string("esp"))
 	{
 		esp = val; app->esp->setItems({ num_to_hexstr(val) });
+		select_line(val, app->stack_tb);
 	}
 	else if (std::string(reg_s) == std::string("eip"))
 	{
@@ -216,6 +173,67 @@ void Model::set_register(const char *reg_s, unsigned val)
 	{
 		ebp = val; app->ebp->setItems({ num_to_hexstr(val) });
 	}
+}
+
+void Model::push(const argument &arg1)
+{
+	if (stack_overflow)
+		throw std::exception("Stack overflow");
+	else
+	{
+		if (esp - 4 == 0x0)
+			stack_overflow = true;
+
+		esp_invalid = false;
+		unsigned val = unpack_arg(arg1);
+
+		stack[esp - 4] = val;
+		insert_stackline(stack[esp - 4], esp - 4);
+
+		set_register("esp", esp - 4);
+		select_line(esp, app->stack_tb);
+	}
+}
+void Model::pop(const argument & arg1)
+{
+	if (arg1.second == value)
+		throw std::exception("Invalid instruction arguments");
+	else if (!stack.empty() && esp_invalid == false && stack.find(esp) != stack.end())
+	{
+		if (esp + 4 < esp)
+			esp_invalid = true;
+
+		stack_overflow = false;
+		set_register(arg1.first.c_str(), stack[esp]);
+
+		set_register("esp", esp + 4);
+		select_line(esp, app->stack_tb);
+	}
+	else
+		throw std::exception("Stack empty or ESP is invalid");
+}
+void Model::mov(const argument & arg1, const argument & arg2)
+{
+	if (arg1.second != reg)
+		throw std::exception("Invalid instruction arguments");
+
+	set_register(arg1.first.c_str(), unpack_arg(arg2));
+}
+void Model::jmp(const argument & arg1)
+{
+	if (arg1.second == value && labels.find(arg1.first) != labels.end())
+	{
+		set_register("eip", labels[arg1.first]);
+	}
+	else
+		set_register("eip", unpack_arg(arg1));
+}
+void Model::ret()
+{
+	if (cmd_list.find(eip) == cmd_list.end())
+		throw std::exception("EIP is invalid");
+
+	pop({ "eip", reg });
 }
 
 unsigned & Model::unpack_arg(const std::pair<std::string, int>& arg)
@@ -251,7 +269,7 @@ unsigned & Model::unpack_arg(const std::pair<std::string, int>& arg)
 std::pair<std::string, int>* Model::args_parse(int arg_amount, XMLElement *xml_element, bool & err_code)
 {
 	boost::regex reg_base("^(eax|ebp|eip|esp)$");
-	boost::regex val_base("^(\\d{1,}|0x(?:[a-f]|\\d){1,})$");
+	boost::regex val_base("^(\\d{1,}|0x(?:[a-f]|\\d){1,}|\\w{1,})$");
 
 	/*parse args*/
 	std::string key_word = "arg";
@@ -307,7 +325,7 @@ void Model::parse_code(const char * xml_name)
 		app->code_tb->clearText();
 		app->stack_tb->clearText();
 
-		boost::regex cmd_base("^(mov|pop|push|jmp|call)$");
+		boost::regex cmd_base("^(mov|pop|push|jmp|call|ret)$");
 
 		unsigned line = 0;
 		unsigned not_parsed = 0;
@@ -318,6 +336,18 @@ void Model::parse_code(const char * xml_name)
 
 			/*return null if not exist*/
 			const char *cmd = xml_element->Attribute("cmd");
+			
+			if (!cmd)
+			{
+				/*it's label*/
+				const char *label_str = xml_element->Attribute("label");
+				if (label_str)
+				{
+					labels[std::string(label_str)] = line * 4;
+					app->code_tb->appendText(std::string(label_str) + ":\n");
+					continue;
+				}
+			}
 
 			if (!cmd || !boost::regex_match(std::string(cmd), cmd_base))
 			{
@@ -328,7 +358,12 @@ void Model::parse_code(const char * xml_name)
 
 			/*parse args*/
 			bool err_code = false;
-			std::pair<std::string, int> *args = args_parse(((std::string(cmd) == "mov") ? 2 : 1), xml_element, err_code);
+			int arg_am = 0;
+
+			if (std::string(cmd) != "ret") 
+				arg_am = (std::string(cmd) == "mov") ? 2 : 1;
+
+			std::pair<std::string, int> *args = args_parse(arg_am, xml_element, err_code);
 
 			if (err_code == true)
 			{
