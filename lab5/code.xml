@@ -1,0 +1,7 @@
+<CODE>
+	<line cmd = "push" arg1 = "0x12345" />
+	<line cmd = "pop"  arg1 = "eax"  	/>
+	<line cmd = "mov"  arg1 = "esp" 	arg2 = "111"/>
+	<line cmd = "push" arg1 = "2222" 	/>
+	<line cmd = "push" arg1 = "3333" 	/>
+</CODE>
