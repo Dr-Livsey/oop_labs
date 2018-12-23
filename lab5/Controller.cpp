@@ -18,7 +18,7 @@ bool Controller::keyPressed(const OgreBites::KeyboardEvent& evt)
 	}
 	else if (evt.keysym.sym == OgreBites::SDLK_SPACE)
 	{
-		std::cout << "\nSpace pressd\n";
+		app->getModel()->exec_line();
 	}
 	return true;
 }

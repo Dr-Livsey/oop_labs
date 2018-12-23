@@ -61,19 +61,19 @@ void Application::setup(void)
 	mTrayMgr->showLogo(OgreBites::TL_TOP);
 	mTrayMgr->showBackdrop("Examples/Rockwall");
 
-	code_tb = mTrayMgr->createTextBox(OgreBites::TL_TOPLEFT,   "code_tb",  "Code",  300, 450);
-	stack_tb = mTrayMgr->createTextBox(OgreBites::TL_TOPRIGHT, "stack_tb", "Stack", 300, 450);
+	code_tb = mTrayMgr->createTextBox(OgreBites::TL_TOPLEFT,   "code_tb",  "Code",  350, 450);
+	stack_tb = mTrayMgr->createTextBox(OgreBites::TL_TOPRIGHT, "stack_tb", "Stack", 350, 450);
 
-	esp = mTrayMgr->createLongSelectMenu(OgreBites::TL_BOTTOMLEFT,  "esp", "ESP", 230, 1, { "0x00000000" });
-	ebp = mTrayMgr->createLongSelectMenu(OgreBites::TL_BOTTOMLEFT,  "ebp", "EBP", 230, 1, { "0x00000000" });
-	eip = mTrayMgr->createLongSelectMenu(OgreBites::TL_BOTTOMRIGHT, "eip", "EIP", 230, 1, { "0x00000000" });
-	eax = mTrayMgr->createLongSelectMenu(OgreBites::TL_BOTTOMRIGHT, "eax", "EAX", 230, 1, { "0x00000000" });
+	esp = mTrayMgr->createLongSelectMenu(OgreBites::TL_BOTTOMLEFT,  "esp", "ESP", 280, 1, { "0x00000000" });
+	ebp = mTrayMgr->createLongSelectMenu(OgreBites::TL_BOTTOMLEFT,  "ebp", "EBP", 280, 1, { "0x00000000" });
+	eip = mTrayMgr->createLongSelectMenu(OgreBites::TL_BOTTOMRIGHT, "eip", "EIP", 280, 1, { "0x00000000" });
+	eax = mTrayMgr->createLongSelectMenu(OgreBites::TL_BOTTOMRIGHT, "eax", "EAX", 280, 1, { "0x00000000" });
 
 	mTrayMgr->createSeparator(OgreBites::TL_BOTTOMRIGHT, "sbr", 10);
 	mTrayMgr->createSeparator(OgreBites::TL_BOTTOMLEFT, "sbl", 10);
 
-	mTrayMgr->createButton(OgreBites::TL_BOTTOMLEFT, "parse_button", "Parse XML");
-	mTrayMgr->createButton(OgreBites::TL_BOTTOMRIGHT, "exit_button", "Exit");
+	mTrayMgr->createButton(OgreBites::TL_BOTTOMLEFT, "parse_button", "Parse XML", 150);
+	mTrayMgr->createButton(OgreBites::TL_BOTTOMRIGHT, "exit_button", "Exit", 150);
 	mTrayMgr->createButton(OgreBites::TL_BOTTOM, "nexti_button", "Execute instruction", 150);	
 	
 }
