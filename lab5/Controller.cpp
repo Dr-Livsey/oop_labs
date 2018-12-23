@@ -35,7 +35,7 @@ void Controller::buttonHit(OgreBites::Button * b)
 	}
 	else if (b->getName() == "nexti_button")
 	{
-		
+		app->getModel()->exec_line();
 	}
 }
 

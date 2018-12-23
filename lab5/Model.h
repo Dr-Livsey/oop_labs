@@ -25,13 +25,13 @@ public:
 	void select_line(int addr, OgreBites::TextBox *tb);
 
 	void exec_line(int addr);
+	void exec_line() { exec_line(eip); }
 
-	void set_eip(int val);
+	void set_reg(std::string, int);
 
 private:
 	int esp = 0, ebp = 0, eip = 0, eax = 0;
 
-	int cur_line = 0;
 	std::map<int, c_line>	cmd_list;
 	std::map<int, int>		stack;
 
@@ -44,5 +44,6 @@ private:
 	std::string num_to_hexstr(int num);
 
 	int &get_reg(std::string reg_s);
+	int &unpack_arg(const std::pair<std::string, int> &arg);
 };
 

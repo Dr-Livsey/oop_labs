@@ -9,7 +9,6 @@ Model::Model(Application *parent) : app(parent)
 {
 }
 
-
 Model::~Model()
 {
 }
@@ -87,7 +86,9 @@ void Model::select_line(int addr, OgreBites::TextBox *tb)
 
 void Model::exec_line(int addr)
 {
-	c_line code_line = cmd_list.at(addr);
+	if (cmd_list.find(addr) == cmd_list.end()) return;
+
+	c_line code_line = cmd_list[addr];
 
 	std::string cmd;
 	std::pair<std::string, int> arg1, arg2;
@@ -98,14 +99,46 @@ void Model::exec_line(int addr)
 	{
 		if (cmd == "push")
 		{
-			int val = (arg1.second == reg) ? get_reg(arg1.first) : boost::lexical_cast<int>(arg1.first);
+			int val = unpack_arg(arg1);
+			
+			stack[esp + 4] = val;
+			app->stack_tb->appendText(make_stackline(val, esp + 4) + "\n");
+
+			set_reg("esp", esp + 4);
+			select_line(esp, app->stack_tb);
+		}
+		else if (cmd == "pop")
+		{
+			if (arg1.second == value)
+				throw std::exception("Invalid instruction arguments");
+			else if (esp >= 0)
+			{
+				set_reg(arg1.first, stack[esp]);
+				set_reg("esp", esp - 4);
+
+				if (esp < 0)
+					app->stack_tb->clearText();
+				else
+					select_line(esp, app->stack_tb);		
+			}
+			else
+				app->getTray()->showOkDialog("Code execution", "EXCEPTION:\n" + std::string("ESP is invalid"));
+		}
 
 
+		if (cmd_list.find(eip + 4) == cmd_list.end())
+		{
+			throw std::exception("No more instructions for execution");
+		}
+		else
+		{
+			set_reg("eip", eip + 4);
+			select_line(eip, app->code_tb);
 		}
 	}
-	catch (const std::exception&)
+	catch (const std::exception &ex)
 	{
-
+		app->getTray()->showOkDialog("Code execution", "WARNING:\n" + std::string(ex.what()));
 	}
 }
 
@@ -120,17 +153,60 @@ int & Model::get_reg(std::string reg_s)
 
 	return ebp;
 }
-
-void Model::set_eip(int val)
+void Model::set_reg(std::string reg_s, int val)
 {
-	eip = val;
-	app->eip->setItems({ num_to_hexstr(val) });
+	if (reg_s == "esp")
+	{
+		esp = val; app->esp->setItems({ num_to_hexstr(val) });
+	}
+	else if (reg_s == "eip")
+	{
+		eip = val; app->eip->setItems({ num_to_hexstr(val) });
+	}
+	else if (reg_s == "eax")
+	{
+		eax = val; app->eax->setItems({ num_to_hexstr(val) });
+	}
+	else if (reg_s == "ebp")
+	{
+		ebp = val; app->ebp->setItems({ num_to_hexstr(val) });
+	}
+}
+
+int & Model::unpack_arg(const std::pair<std::string, int>& arg)
+{
+	auto convert_to_int = [](std::string val) -> int
+	{
+		int retval;
+
+		if (boost::regex_match(val, boost::regex("^0x(?:[a-f]|\\d){1,}$")))
+		{
+			val.replace(0, 2, "");
+
+			std::stringstream ss;
+			ss << std::hex << val;
+
+			if (ss.good() && !ss.eof()) ss >> retval;
+			else
+			{
+				throw std::exception(("Bad cast hex value: " + val).c_str());
+			}
+		}
+		else
+			retval = boost::lexical_cast<int>(val);
+
+		return retval;
+	};
+
+	int val = (arg.second == reg) ? get_reg(arg.first) : convert_to_int(arg.first);
+
+	return val;
 }
 
 std::pair<std::string, int>* Model::args_parse(int arg_amount, XMLElement *xml_element, bool & err_code)
 {
 	boost::regex reg_base("^(eax|ebp|eip|esp)$");
-	boost::regex val_base("^(\\d{1,}|0x\\d{1,})$");
+	boost::regex val_base("^(\\d{1,}|0x(?:[a-f]|\\d){1,})$");
 
 	/*parse args*/
 	std::string key_word = "arg";
@@ -176,7 +252,7 @@ void Model::parse_code(const char * xml_name)
 
 	if (xml_code)
 	{
-		cur_line = 0; eip = 0; esp = 0; ebp = 0; eax = 0;
+		eip = 0; esp = -4; ebp = 0; eax = 0;
 
 		cmd_list.clear();
 		stack.clear();
@@ -189,7 +265,7 @@ void Model::parse_code(const char * xml_name)
 		unsigned line = 0;
 		unsigned not_parsed = 0;
 		std::cout << "\nXML parse proccess: \n";
-		for (XMLNode *node = xml_code->FirstChildElement(); node; node = node->NextSibling(), line++)
+		for (XMLNode *node = xml_code->FirstChildElement(); node; node = node->NextSibling())
 		{
 			XMLElement *xml_element = node->ToElement();
 
@@ -220,20 +296,23 @@ void Model::parse_code(const char * xml_name)
 
 				app->code_tb->appendText(make_strline(l, line * 4) + "\n");
 				std::cout << "# line: " << line + 1 << ".\tXML parse status: success.\n";
+
+				line++;
 			}
 
 			delete[] args;
 		}
 
-		std::string message = "Status: SUCCESS.\nParsed: " + std::to_string(line) +
+		std::string message = "Status: SUCCESS.\nParsed: " + std::to_string(line - not_parsed) +
 			".\nNot Parsed: " + std::to_string(not_parsed);
 		app->getTray()->showOkDialog("Code parsing", message);
 
 		select_line(0, app->code_tb);
 
 		/*stack init*/
-		app->stack_tb->appendText(make_stackline(0, 0));
-		select_line(0, app->stack_tb);
+		set_reg("esp", esp);
+		//app->stack_tb->appendText(make_stackline(0, 0) + "\n");
+		//select_line(0, app->stack_tb);
 	}
 	else app->getTray()->showOkDialog("Code parsing", "Status: invalid code file format");
 
